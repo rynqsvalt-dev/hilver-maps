@@ -549,9 +549,17 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         else {
           oc.style.display = 'block';
           var ofr = this.svgEl ? this.fit() : null;
-          oc.style.left = (ofr ? Math.max(4, Math.round(ofr.ox + 300 * ofr.f)) : 16) + 'px';
-          oc.style.top = (ofr ? Math.max(4, Math.round(ofr.oy + 34 * ofr.f)) : 16) + 'px';
-          var osig = narrow + '|' + offs.map(function (t) { return t.id; }).join(',') + '|' + (s.offPopOpen ? 'o' : 'c');
+          var oL, popMax;
+          if (ofr) {
+            oL = ofr.ox + (300 * s.z + s.tx) * ofr.f;
+            var oT = ofr.oy + (34 * s.z + s.ty) * ofr.f;
+            oc.style.left = Math.round(oL) + 'px';
+            oc.style.top = Math.round(oT) + 'px';
+            popMax = Math.max(150, Math.round(ofr.r.width - oL - 14));
+            oc.style.maxWidth = popMax + 'px';
+          } else { oL = 16; oc.style.left = '16px'; oc.style.top = '16px'; popMax = 250; oc.style.maxWidth = '62%'; }
+          var popMaxB = Math.round(popMax / 40);
+          var osig = narrow + '|' + offs.map(function (t) { return t.id; }).join(',') + '|' + (s.offPopOpen ? 'o' : 'c') + '|' + popMaxB;
           if (osig !== this._offSig) {
             this._offSig = osig;
             var cz = narrow ? 22 : 25;
@@ -560,7 +568,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
               '<span class="hk-offcircle" style="display:flex;align-items:center;justify-content:center;width:' + cz + 'px;height:' + cz + 'px;border-radius:50%;background:' + C + ';border:2px solid #fff;box-shadow:0 2px 8px rgba(10,60,54,.22);color:#fff;font:800 ' + (narrow ? '11px' : '12px') + ' ' + FONTD + ';line-height:1">' + offs.length + '</span></button>';
             var pop = '';
             if (s.offPopOpen) {
-              pop = '<div style="margin-top:6px;background:#fff;border:1px solid #E9E7DE;border-radius:12px;box-shadow:0 10px 26px rgba(10,60,54,.16);padding:6px;min-width:190px;max-width:250px">' +
+              pop = '<div style="margin-top:6px;background:#fff;border:1px solid #E9E7DE;border-radius:12px;box-shadow:0 10px 26px rgba(10,60,54,.16);padding:6px;min-width:' + Math.min(popMax, narrow ? 150 : 190) + 'px;max-width:' + popMax + 'px">' +
                 '<div style="font:700 10.5px ' + FONT + ';letter-spacing:.4px;text-transform:uppercase;color:#8A948F;padding:5px 8px 6px">Außerhalb der Karte</div>' +
                 offs.map(function (t) {
                   return '<button class="hk-offrow hk-btn" data-id="' + t.id + '" style="display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;text-align:left;border:none;background:transparent;border-radius:9px;padding:8px 10px;cursor:pointer;font:600 12.5px ' + FONT + ';color:#123F39">' +
