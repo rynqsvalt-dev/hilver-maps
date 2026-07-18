@@ -334,6 +334,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var s = this.st, self = this;
       var w = this.getBoundingClientRect().width || s.w; s.w = w;
       var narrow = w < 760;
+      this._narrow = narrow;
       var fsDesk = s.fullscreen && !narrow;
       var activeId = s.pinned || s.hover;
       var act = this.towns.filter(function (t) { return !t.planned && (s.year === 'alle' || t.year <= +s.year); });
@@ -536,19 +537,27 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
 
       // Off-map: ein Kreis mit ↑ + Anzahl (Klick öffnet Liste) — gleichwertig zu den Markern
       var oc = this.$('.hk-offmap');
+      if (oc && !oc._hoverBound) {
+        oc._hoverBound = true;
+        oc.addEventListener('mouseenter', function () { if (self._narrow || (self._offCount || 0) <= 1) return; clearTimeout(self._offHT); if (!self.st.offPopOpen) { self.st.offPopOpen = true; self.render(); } });
+        oc.addEventListener('mouseleave', function () { if (self._narrow) return; clearTimeout(self._offHT); self._offHT = setTimeout(function () { if (self.st.offPopOpen) { self.st.offPopOpen = false; self.render(); } }, 180); });
+      }
       if (oc) {
         var offs = this.towns.filter(function (t) { return self.offMap(t) && self.match(t); }).sort(function (a, b) { return a.name.localeCompare(b.name, 'de'); });
         this._offCount = offs.length;
         if (!offs.length) { oc.style.display = 'none'; oc.innerHTML = ''; this._offSig = ''; }
         else {
-          oc.style.display = 'block'; oc.style.left = '16px';
+          oc.style.display = 'block';
+          var ofr = this.svgEl ? this.fit() : null;
+          oc.style.left = (ofr ? Math.max(4, Math.round(ofr.ox + 300 * ofr.f)) : 16) + 'px';
+          oc.style.top = (ofr ? Math.max(4, Math.round(ofr.oy + 34 * ofr.f)) : 16) + 'px';
           var osig = narrow + '|' + offs.map(function (t) { return t.id; }).join(',') + '|' + (s.offPopOpen ? 'o' : 'c');
           if (osig !== this._offSig) {
             this._offSig = osig;
-            var cz = narrow ? 28 : 32;
+            var cz = narrow ? 22 : 25;
             var circle = '<button class="hk-offbtn hk-btn" title="' + offs.length + ' Standorte außerhalb der Karte" style="display:flex;flex-direction:row;align-items:center;gap:4px;background:transparent;border:none;padding:0;cursor:pointer">' +
-              '<span style="font-size:' + (narrow ? '14px' : '16px') + ';line-height:1;color:' + C + ';font-weight:800">↑</span>' +
-              '<span class="hk-offcircle" style="display:flex;align-items:center;justify-content:center;width:' + cz + 'px;height:' + cz + 'px;border-radius:50%;background:' + C + ';border:2px solid #fff;box-shadow:0 2px 8px rgba(10,60,54,.22);color:#fff;font:800 ' + (narrow ? '12px' : '13px') + ' ' + FONTD + ';line-height:1">' + offs.length + '</span></button>';
+              '<span style="font-size:' + (narrow ? '12px' : '14px') + ';line-height:1;color:' + C + ';font-weight:800">↑</span>' +
+              '<span class="hk-offcircle" style="display:flex;align-items:center;justify-content:center;width:' + cz + 'px;height:' + cz + 'px;border-radius:50%;background:' + C + ';border:2px solid #fff;box-shadow:0 2px 8px rgba(10,60,54,.22);color:#fff;font:800 ' + (narrow ? '11px' : '12px') + ' ' + FONTD + ';line-height:1">' + offs.length + '</span></button>';
             var pop = '';
             if (s.offPopOpen) {
               pop = '<div style="margin-top:6px;background:#fff;border:1px solid #E9E7DE;border-radius:12px;box-shadow:0 10px 26px rgba(10,60,54,.16);padding:6px;min-width:190px;max-width:250px">' +
