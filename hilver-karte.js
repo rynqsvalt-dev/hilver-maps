@@ -88,7 +88,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
 
     /* ---------- gestures ---------- */
     onWheel(e) { e.preventDefault(); cancelAnimationFrame(this._raf); var fr = this.fit(); this.zoomAt((e.clientX - fr.r.left - fr.ox) / fr.f, (e.clientY - fr.r.top - fr.oy) / fr.f, this.st.z * Math.exp(-e.deltaY * 0.003)); }
-    onDown(e) { var touch = e.pointerType === 'touch'; this._pts[e.pointerId] = [e.clientX, e.clientY]; cancelAnimationFrame(this._raf); var ids = Object.keys(this._pts); if (ids.length === 2) { try { this.svgEl.setPointerCapture(e.pointerId); } catch (x) {} var p = [this._pts[ids[0]], this._pts[ids[1]]]; this._pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]), z: this.st.z }; this._drag = null; } else if (ids.length === 1) { if (touch) { this._drag = null; } else { try { this.svgEl.setPointerCapture(e.pointerId); } catch (x) {} this._drag = this.st.z > 1.01 ? { x: e.clientX, y: e.clientY, tx: this.st.tx, ty: this.st.ty, moved: false } : null; } } }
+    onDown(e) { var touch = e.pointerType === 'touch'; this._pts[e.pointerId] = [e.clientX, e.clientY]; cancelAnimationFrame(this._raf); var ids = Object.keys(this._pts); if (ids.length === 2) { try { this.svgEl.setPointerCapture(e.pointerId); } catch (x) {} var p = [this._pts[ids[0]], this._pts[ids[1]]]; this._pinch = { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]), z: this.st.z }; this._drag = null; } else if (ids.length === 1) { if (this.st.z > 1.01) { try { this.svgEl.setPointerCapture(e.pointerId); } catch (x) {} this._drag = { x: e.clientX, y: e.clientY, tx: this.st.tx, ty: this.st.ty, moved: false }; } else { this._drag = null; } } }
     onMove(e) { if (!this._pts[e.pointerId]) return; this._pts[e.pointerId] = [e.clientX, e.clientY]; var ids = Object.keys(this._pts); if (this._pinch && ids.length === 2) { var p = [this._pts[ids[0]], this._pts[ids[1]]]; var d = Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]); var fr = this.fit(); var mx = ((p[0][0] + p[1][0]) / 2 - fr.r.left - fr.ox) / fr.f, my = ((p[0][1] + p[1][1]) / 2 - fr.r.top - fr.oy) / fr.f; this.zoomAt(mx, my, this._pinch.z * d / this._pinch.d); } else if (this._drag) { var dx = e.clientX - this._drag.x, dy = e.clientY - this._drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) this._drag.moved = true; var f2 = this.fit().f; var c = this.clampT(this.st.z, this._drag.tx + dx / f2, this._drag.ty + dy / f2); this.st.tx = c.tx; this.st.ty = c.ty; this.render(); } }
     onUp(e) { delete this._pts[e.pointerId]; var n = Object.keys(this._pts).length; if (n < 2) this._pinch = null; if (n === 0) { this._justDragged = this._drag && this._drag.moved; this._drag = null; } }
 
@@ -247,7 +247,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     wire() {
       var self = this, s = this.st;
       this.svgEl.addEventListener('wheel', function (e) { self.onWheel(e); }, { passive: false });
-      this.svgEl.addEventListener('touchmove', function (e) { if (e.touches && e.touches.length >= 2) e.preventDefault(); }, { passive: false });
+      this.svgEl.addEventListener('touchmove', function (e) { if (e.touches && (e.touches.length >= 2 || self._drag)) e.preventDefault(); }, { passive: false });
       this.svgEl.addEventListener('pointerdown', function (e) { self.onDown(e); });
       this.svgEl.addEventListener('pointermove', function (e) { self.onMove(e); });
       this.svgEl.addEventListener('pointerup', function (e) { self.onUp(e); });
@@ -300,7 +300,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.$('.hk-mapwrap').style.padding = narrow ? '18px 8px' : '20px';
       this.svgEl.style.maxHeight = narrow ? '58vh' : '76vh';
       this.svgEl.style.minHeight = narrow ? '300px' : '0';
-      this.svgEl.style.touchAction = 'pan-y';
+      this.svgEl.style.touchAction = (s.z > 1.01) ? 'none' : 'pan-y';
       this.svgEl.style.cursor = s.z > 1.01 ? 'grab' : 'default';
       this.$('.hk-inset').style.display = narrow ? 'none' : 'block';
       // filters: compact behind a toggle on mobile
@@ -333,7 +333,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.$('.hk-geo').textContent = s.locating ? '…' : '◎';
       this.$('.hk-clear').style.display = filtered ? 'inline-block' : 'none';
       this.$('.hk-lhead').textContent = filtered ? (shown === 1 ? '1 Ergebnis' : shown + ' Ergebnisse') : 'Alle Standorte';
-      this.$('.hk-hint').textContent = s.geoMsg || (narrow ? 'Zwei Finger bewegen & zoomen · oder +/−' : 'Ziehen zum Verschieben · Scrollen oder Kneifen zum Zoomen');
+      this.$('.hk-hint').textContent = s.geoMsg || (narrow ? (s.z > 1.01 ? 'Finger zieht die Karte · Kneifen zoomt' : 'Kneifen oder +/− zum Zoomen') : 'Ziehen zum Verschieben · Scrollen oder Kneifen zum Zoomen');
 
       // chips active state
       this.root.querySelectorAll('.hk-chip').forEach(function (b) { var on = b.getAttribute('data-y') === s.year; b.style.background = on ? C : '#fff'; b.style.color = on ? '#fff' : '#41544F'; b.style.borderColor = on ? C : '#DCDAD0'; });
