@@ -36,7 +36,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     connectedCallback() {
       if (this._init) return; this._init = true;
       this.W = DATA.W; this.H = DATA.H;
-      this.st = { z: 1, tx: 0, ty: 0, hover: null, pinned: null, search: '', year: 'alle', typ: 'alle', kreis: 'alle', playing: false, listOpen: false, mobileListOpen: false, w: 1100, locating: false, geoMsg: null, filtersOpen: false, spider: null };
+      this.st = { z: 1, tx: 0, ty: 0, hover: null, pinned: null, search: '', year: 'alle', typ: 'alle', kreis: 'alle', playing: false, listOpen: false, mobileListOpen: false, w: 1100, locating: false, geoMsg: null, filtersOpen: false, spider: null, fullscreen: false };
       this.towns = DATA.towns.slice();
       this._pts = {};
       this.root = this.attachShadow ? this.attachShadow({ mode: 'open' }) : this;
@@ -45,7 +45,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.applyAttrData();
       this._onMsg = (e) => { var m = e.data; if (m && m.type === 'hilver:kommunen' && Array.isArray(m.kommunen)) this.setTowns(m.kommunen); };
       window.addEventListener('message', this._onMsg);
-      this._onKey = (e) => { if (e.key === 'Escape' && (this.st.pinned || this.st.hover)) { this.st.pinned = null; this.st.hover = null; this.render(); } };
+      this._onKey = (e) => { if (e.key !== 'Escape') return; if (this.st.fullscreen) { this.toggleFullscreen(); return; } if (this.st.pinned || this.st.hover) { this.st.pinned = null; this.st.hover = null; this.render(); } };
       window.addEventListener('keydown', this._onKey);
       var du = this.getAttribute('daten-url');
       if (du) fetch(du).then(function (r) { return r.json(); }).then((j) => { var a = Array.isArray(j) ? j : j.kommunen; if (Array.isArray(a)) this.setTowns(a); }).catch(function () {});
@@ -56,7 +56,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.onResize();
       this.render();
     }
-    disconnectedCallback() { if (this._onMsg) window.removeEventListener('message', this._onMsg); if (this._onKey) window.removeEventListener('keydown', this._onKey); if (this._onWinResize) window.removeEventListener('resize', this._onWinResize); if (this._ro) this._ro.disconnect(); cancelAnimationFrame(this._raf); clearInterval(this._playIv); }
+    disconnectedCallback() { try { if (this.st && this.st.fullscreen) document.body.style.overflow = this._prevBodyOv || ''; } catch (e) {} if (this._onMsg) window.removeEventListener('message', this._onMsg); if (this._onKey) window.removeEventListener('keydown', this._onKey); if (this._onWinResize) window.removeEventListener('resize', this._onWinResize); if (this._ro) this._ro.disconnect(); cancelAnimationFrame(this._raf); clearInterval(this._playIv); }
 
     injectFont() {
       if (!document.getElementById('hilver-karte-font')) {
@@ -78,11 +78,12 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     /* ---------- geometry ---------- */
     fit() { var r = this.svgEl.getBoundingClientRect(); var f = Math.min(r.width / this.W, r.height / this.H) || 1; return { r: r, f: f, ox: (r.width - this.W * f) / 2, oy: (r.height - this.H * f) / 2 }; }
     clampT(z, tx, ty) { var m = 40; tx = Math.min(m, Math.max(this.W - this.W * z - m, tx)); ty = Math.min(m, Math.max(this.H - this.H * z - m, ty)); return { z: z, tx: tx, ty: ty }; }
-    zoomAt(vx, vy, nz) { cancelAnimationFrame(this._raf); this.st.spider = null; var s = this.st; nz = Math.min(12, Math.max(1, nz)); if (nz <= 1.06) { s.z = 1; s.tx = 0; s.ty = 0; this.render(); return; } var wx = (vx - s.tx) / s.z, wy = (vy - s.ty) / s.z; var c = this.clampT(nz, vx - wx * nz, vy - wy * nz); s.z = c.z; s.tx = c.tx; s.ty = c.ty; this.render(); }
+    zoomAt(vx, vy, nz) { cancelAnimationFrame(this._raf); this.st.spider = null; var s = this.st; nz = Math.min(16, Math.max(1, nz)); if (nz <= 1.06) { s.z = 1; s.tx = 0; s.ty = 0; this.render(); return; } var wx = (vx - s.tx) / s.z, wy = (vy - s.ty) / s.z; var c = this.clampT(nz, vx - wx * nz, vy - wy * nz); s.z = c.z; s.tx = c.tx; s.ty = c.ty; this.render(); }
     zoomCenter(k) { var fr = this.fit(); this.zoomAt((fr.r.width / 2 - fr.ox) / fr.f, (fr.r.height / 2 - fr.oy) / fr.f, this.st.z * k); }
     animateTo(nz, ntx, nty) { cancelAnimationFrame(this._raf); var s = this.st, t0 = performance.now(), z0 = s.z, x0 = s.tx, y0 = s.ty, self = this; function step(t) { var pr = Math.min(1, (t - t0) / 380), e = 1 - Math.pow(1 - pr, 3); s.z = z0 + (nz - z0) * e; s.tx = x0 + (ntx - x0) * e; s.ty = y0 + (nty - y0) * e; self.render(); if (pr < 1) self._raf = requestAnimationFrame(step); } this._raf = requestAnimationFrame(step); }
     select(t) { this.blurSearch(); this.st.spider = null; this.st.pinned = t.id; this.st.hover = null; if (t.state === 'NW') { this.render(); return; } var narrow = (this.st.w || 1100) < 760; var nz = Math.max(this.st.z, narrow ? 3.4 : 2.6); var fy = narrow ? this.H * 0.30 : this.H / 2; var c = this.clampT(nz, this.W / 2 - t.x * nz, fy - t.y * nz); this.animateTo(c.z, c.tx, c.ty); }
     reset() { this.st.pinned = null; this.st.hover = null; this.st.spider = null; this.animateTo(1, 0, 0); }
+    toggleFullscreen() { var s = this.st; s.fullscreen = !s.fullscreen; try { if (s.fullscreen) { this._prevBodyOv = document.body.style.overflow; document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = this._prevBodyOv || ''; } } catch (e) {} this.render(); var self = this; setTimeout(function () { self.onResize(); self.render(); }, 30); }
     blurSearch() { try { var a = this.root && this.root.activeElement; if (a && a.blur) a.blur(); } catch (e) {} var si = this.$('.hk-search'); if (si) si.blur(); var mi = this.$('.hk-msearch'); if (mi) mi.blur(); }
     clusterTap(g) { this.st.spider = null; this.zoomToGroup(g); }
     shapeFor(t) {
@@ -91,11 +92,15 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       return svg('rect', { x: -8.5, y: -8.5, width: 17, height: 17, rx: 5, fill: C, stroke: '#fff', style: 'stroke-width:1.6' });
     }
     zoomToGroup(g) {
-      var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+      var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9, dmin = 1e9;
       g.forEach(function (t) { if (t.x < minx) minx = t.x; if (t.x > maxx) maxx = t.x; if (t.y < miny) miny = t.y; if (t.y > maxy) maxy = t.y; });
+      for (var i = 0; i < g.length; i++) for (var j = i + 1; j < g.length; j++) { var dx = g[i].x - g[j].x, dy = g[i].y - g[j].y, d = Math.sqrt(dx * dx + dy * dy); if (d < dmin) dmin = d; }
       var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
-      var spanx = Math.max(70, maxx - minx) * 1.7, spany = Math.max(70, maxy - miny) * 1.7;
-      var nz = Math.min(12, Math.max(2.4, Math.min(this.W / spanx, this.H / spany)));
+      var fScr = Math.max(0.15, this.fit().f);
+      var spanx = Math.max(50, maxx - minx) * 1.6, spany = Math.max(50, maxy - miny) * 1.6;
+      var fitNz = Math.min(this.W / spanx, this.H / spany);
+      var sepNz = (dmin > 0 && dmin < 1e8) ? (26 * 1.4) / (dmin * fScr) : fitNz;
+      var nz = Math.min(16, Math.max(2.4, fitNz, sepNz));
       var c = this.clampT(nz, this.W / 2 - cx * nz, this.H / 2 - cy * nz);
       this.animateTo(c.z, c.tx, c.ty);
     }
@@ -120,7 +125,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     build() {
       var wrap = el('div', null, "font-family:" + FONT + ";color:#17332F;box-sizing:border-box;width:100%;");
       wrap.innerHTML = this.skeleton();
-      this.root.appendChild(wrap);
+      this.root.appendChild(wrap); this.wrap = wrap;
       this.$ = (s) => this.root.querySelector(s);
       this.svgEl = this.$('.hk-svg');
       this.gEl = this.$('.hk-g');
@@ -164,6 +169,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         '    <svg class="hk-svg" viewBox="0 0 ' + this.W + ' ' + this.H + '" style="display:block;width:100%;height:auto;max-height:76vh;touch-action:pan-y;user-select:none"><g class="hk-g"></g></svg>' +
         '    <button class="hk-wegchip hk-btn" title="hilver in Wegberg (NRW)" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:8px;z-index:5;background:#fff;border:1.5px solid #E0DED4;border-radius:99px;padding:7px 15px;box-shadow:0 3px 12px rgba(10,60,54,.12);font:600 12.5px ' + FONT + ';color:#123F39;white-space:nowrap"></button>' +
         '    <div style="position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px;z-index:4">' +
+        '      <button class="hk-fs hk-btn" title="Vollbild" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font-size:15px;box-shadow:0 2px 8px rgba(10,60,54,.10)">⤢</button>' +
         '      <button class="hk-zin hk-btn" title="Vergrößern" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font:600 19px/1 ' + FONT + ';box-shadow:0 2px 8px rgba(10,60,54,.10)">+</button>' +
         '      <button class="hk-zout hk-btn" title="Verkleinern" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font:600 19px/1 ' + FONT + ';box-shadow:0 2px 8px rgba(10,60,54,.10)">−</button>' +
         '      <button class="hk-reset hk-btn" title="Zurücksetzen" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font:500 16px/1 ' + FONT + ';box-shadow:0 2px 8px rgba(10,60,54,.10)">⟲</button>' +
@@ -283,6 +289,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.$('.hk-zin').addEventListener('click', function () { self.zoomCenter(1.5); });
       this.$('.hk-zout').addEventListener('click', function () { self.zoomCenter(1 / 1.5); });
       this.$('.hk-reset').addEventListener('click', function () { self.reset(); });
+      this.$('.hk-fs').addEventListener('click', function () { self.toggleFullscreen(); });
       this.$('.hk-play').addEventListener('click', function () { self.playGrowth(); });
       this.$('.hk-wegchip').addEventListener('click', function (e) { e.stopPropagation(); var w = self.wegberg(); if (w) self.select(w); });
       this.$('.hk-wegchip').addEventListener('mouseenter', function () { var w = self.wegberg(); if (w) self.enter(w); });
@@ -332,7 +339,9 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       // layout
       this.$('.hk-body').style.flexDirection = narrow ? 'column' : 'row';
       this.$('.hk-mapwrap').style.padding = narrow ? '18px 8px' : '20px';
-      this.svgEl.style.maxHeight = narrow ? '58vh' : '76vh';
+      if (this.wrap) this.wrap.style.cssText = s.fullscreen ? ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;position:fixed;inset:0;z-index:2147483000;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 22px") : ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;width:100%");
+      var fsb = this.$('.hk-fs'); if (fsb) { fsb.innerHTML = s.fullscreen ? '✕' : '⤢'; fsb.title = s.fullscreen ? 'Vollbild schließen' : 'Vollbild'; }
+      this.svgEl.style.maxHeight = s.fullscreen ? (narrow ? '68vh' : '84vh') : (narrow ? '58vh' : '76vh');
       this.svgEl.style.minHeight = narrow ? '300px' : '0';
       this.svgEl.style.touchAction = narrow ? 'none' : (s.z > 1.01 ? 'none' : 'pan-y');
       this.svgEl.style.cursor = s.z > 1.01 ? 'grab' : 'default';
@@ -435,7 +444,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var clusterOf = {}, clusters = [];
       if (narrow) {
         var vis = self.towns.filter(function (t) { return t.state !== 'NW' && self.match(t) && t.id !== activeId; });
-        var radW = 30 / (s.z * fScr), used = {};
+        var radW = 26 / (s.z * fScr), used = {};
         vis.forEach(function (t) {
           if (used[t.id]) return;
           var group = [t]; used[t.id] = 1;
