@@ -13,14 +13,18 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
 
   function normTown(t, i, p) {
-    var lat = +t.lat || +t.breitengrad || +t.latitude || 0, lon = +t.lon || +t.laengengrad || +t.longitude || 0;
-    var typ = (t.typ || t.art || t.traegerschaft || 'kommune').toLowerCase().indexOf('nachbar') >= 0 ? 'nachbarschaftshilfe' : 'kommune';
+    var mediaUrl = function (v) { if (!v || typeof v !== 'string') return ''; if (v.indexOf('http') === 0) return v; var m = v.match(/wix:image:\/\/v1\/([^\/]+)/); return m ? 'https://static.wixstatic.com/media/' + m[1] : ''; };
+    var lat = +t.lat || +t.breitengrad || +t.latitude || 0, lon = +t.lon || +t.laengengrad || +t['längengrad'] || +t.lngengrad || +t.longitude || 0;
+    var typRaw = t.typ || t.art || t.traegerschaft || t.trgerschaft || 'kommune';
+    if (Array.isArray(typRaw)) typRaw = typRaw.join(' ');
+    var typ = String(typRaw).toLowerCase().indexOf('nachbar') >= 0 ? 'nachbarschaftshilfe' : 'kommune';
     var st = String(t.status || '').toLowerCase();
+    var nm = t.name || t.title || t.title_fld || t.titel || t.label || '';
     return {
-      id: String(t.id || t.name || t.title || 'k' + i).toLowerCase().replace(/[^a-zäöüß0-9]+/g, '-'),
-      name: t.name || t.title || t.titel || '', year: +t.year || +t.seit || +t.beitrittsjahr || new Date().getFullYear(),
+      id: String(t.id || nm || 'k' + i).toLowerCase().replace(/[^a-zäöüß0-9]+/g, '-'),
+      name: nm, year: +t.year || +t.seit || +t.beitrittsjahr || new Date().getFullYear(),
       region: t.region || t.landkreis || '', state: t.state || t.bundesland || 'BW',
-      url: t.url || t.link || '#', logo: t.logo || t.image || '',
+      url: t.url || t.link || '#', logo: mediaUrl(t.logo || t.image || t.image_fld),
       founder: !!(t.founder || t.gruendungskommune),
       planned: !!(t.planned || t.geplant) || st.indexOf('geplant') >= 0 || st.indexOf('planung') >= 0,
       typ: typ, lat: lat, lon: lon,
@@ -73,6 +77,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     }
     setTowns(raw) {
       var p = DATA.proj, out = raw.map(function (t, i) { return normTown(t, i, p); }).filter(function (t) { return t.lat && t.lon && t.name; });
+      try { console.info('[hilver-karte] CMS-Daten empfangen:', (raw || []).length, '· mit gültigen Koordinaten:', out.length, out.length ? '→ Karte nutzt CMS' : '→ 0 gültige, Demo-Liste bleibt'); } catch (e) {}
       if (out.length) { this.towns = out; this.rebuildMarkers(); this.buildKreisOptions(); this.render(); }
     }
     applyAttrData() {
