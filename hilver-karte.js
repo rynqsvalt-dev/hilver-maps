@@ -38,7 +38,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     connectedCallback() {
       if (this._init) return; this._init = true;
       this.W = DATA.W; this.H = DATA.H;
-      this.st = { z: 1, tx: 0, ty: 0, hover: null, pinned: null, search: '', year: 'alle', typ: 'alle', kreis: 'alle', playing: false, listOpen: false, mobileListOpen: false, w: 1100, locating: false, geoMsg: null, filtersOpen: false };
+      this.st = { z: 1, tx: 0, ty: 0, hover: null, pinned: null, search: '', year: 'alle', typ: 'alle', kreis: 'alle', playing: false, listOpen: false, mobileListOpen: false, w: 1100, locating: false, geoMsg: null, filtersOpen: false, spider: null };
       this.towns = DATA.towns.slice();
       this._pts = {};
       this.root = this.attachShadow ? this.attachShadow({ mode: 'open' }) : this;
@@ -69,7 +69,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     }
     setTowns(raw) {
       var p = DATA.proj, out = raw.map(function (t, i) { return normTown(t, i, p); }).filter(function (t) { return t.lat && t.lon && t.name; });
-      if (out.length) { this.towns = out; this.rebuildMarkers(); this.buildInsetDots(); this.buildKreisOptions(); this.render(); }
+      if (out.length) { this.towns = out; this.rebuildMarkers(); this.buildKreisOptions(); this.render(); }
     }
     applyAttrData() {
       var inl = this.getAttribute('kommunen-json');
@@ -80,11 +80,22 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     /* ---------- geometry ---------- */
     fit() { var r = this.svgEl.getBoundingClientRect(); var f = Math.min(r.width / this.W, r.height / this.H) || 1; return { r: r, f: f, ox: (r.width - this.W * f) / 2, oy: (r.height - this.H * f) / 2 }; }
     clampT(z, tx, ty) { var m = 40; tx = Math.min(m, Math.max(this.W - this.W * z - m, tx)); ty = Math.min(m, Math.max(this.H - this.H * z - m, ty)); return { z: z, tx: tx, ty: ty }; }
-    zoomAt(vx, vy, nz) { cancelAnimationFrame(this._raf); var s = this.st; nz = Math.min(9, Math.max(1, nz)); if (nz <= 1.06) { s.z = 1; s.tx = 0; s.ty = 0; this.render(); return; } var wx = (vx - s.tx) / s.z, wy = (vy - s.ty) / s.z; var c = this.clampT(nz, vx - wx * nz, vy - wy * nz); s.z = c.z; s.tx = c.tx; s.ty = c.ty; this.render(); }
+    zoomAt(vx, vy, nz) { cancelAnimationFrame(this._raf); this.st.spider = null; var s = this.st; nz = Math.min(9, Math.max(1, nz)); if (nz <= 1.06) { s.z = 1; s.tx = 0; s.ty = 0; this.render(); return; } var wx = (vx - s.tx) / s.z, wy = (vy - s.ty) / s.z; var c = this.clampT(nz, vx - wx * nz, vy - wy * nz); s.z = c.z; s.tx = c.tx; s.ty = c.ty; this.render(); }
     zoomCenter(k) { var fr = this.fit(); this.zoomAt((fr.r.width / 2 - fr.ox) / fr.f, (fr.r.height / 2 - fr.oy) / fr.f, this.st.z * k); }
     animateTo(nz, ntx, nty) { cancelAnimationFrame(this._raf); var s = this.st, t0 = performance.now(), z0 = s.z, x0 = s.tx, y0 = s.ty, self = this; function step(t) { var pr = Math.min(1, (t - t0) / 380), e = 1 - Math.pow(1 - pr, 3); s.z = z0 + (nz - z0) * e; s.tx = x0 + (ntx - x0) * e; s.ty = y0 + (nty - y0) * e; self.render(); if (pr < 1) self._raf = requestAnimationFrame(step); } this._raf = requestAnimationFrame(step); }
-    select(t) { this.st.pinned = t.id; this.st.hover = null; if (t.state === 'NW') { this.render(); return; } var nz = Math.max(this.st.z, 2.6); var c = this.clampT(nz, this.W / 2 - t.x * nz, this.H / 2 - t.y * nz); this.animateTo(c.z, c.tx, c.ty); }
-    reset() { this.st.pinned = null; this.st.hover = null; this.animateTo(1, 0, 0); }
+    select(t) { this.st.spider = null; this.st.pinned = t.id; this.st.hover = null; if (t.state === 'NW') { this.render(); return; } var nz = Math.max(this.st.z, 2.6); var c = this.clampT(nz, this.W / 2 - t.x * nz, this.H / 2 - t.y * nz); this.animateTo(c.z, c.tx, c.ty); }
+    reset() { this.st.pinned = null; this.st.hover = null; this.st.spider = null; this.animateTo(1, 0, 0); }
+    clusterTap(g) {
+      var s = this.st, fScr = Math.max(0.15, this.fit().f), dmin = 1e9;
+      for (var i = 0; i < g.length; i++) for (var j = i + 1; j < g.length; j++) { var dx = g[i].x - g[j].x, dy = g[i].y - g[j].y, d = Math.sqrt(dx * dx + dy * dy); if (d < dmin) dmin = d; }
+      if (dmin > 0 && dmin * 9 * fScr >= 26) { s.spider = null; this.zoomToGroup(g); }
+      else { var cx = 0, cy = 0; g.forEach(function (t) { cx += t.x; cy += t.y; }); cx /= g.length; cy /= g.length; s.spider = { cx: cx, cy: cy, members: g.slice() }; this.render(); }
+    }
+    shapeFor(t) {
+      if (t.planned) return svg('rect', { x: -8, y: -8, width: 16, height: 16, rx: 4.8, fill: '#F7F5EF', stroke: C, style: 'stroke-width:1.8;stroke-dasharray:3 2.6' });
+      if ((t.typ || 'kommune') === 'nachbarschaftshilfe') return svg('rect', { x: -7.3, y: -7.3, width: 14.6, height: 14.6, rx: 4.3, fill: '#fff', stroke: C, style: 'stroke-width:2.4' });
+      return svg('rect', { x: -8.5, y: -8.5, width: 17, height: 17, rx: 5, fill: C, stroke: '#fff', style: 'stroke-width:1.6' });
+    }
     zoomToGroup(g) {
       var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
       g.forEach(function (t) { if (t.x < minx) minx = t.x; if (t.x > maxx) maxx = t.x; if (t.y < miny) miny = t.y; if (t.y > maxy) maxy = t.y; });
@@ -136,12 +147,15 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         '<div class="hk-top" style="margin:0 0 12px">' +
         '  <div class="hk-toprow" style="display:flex;align-items:center;gap:10px">' +
         '    <div class="hk-sub" style="margin-right:auto;font:600 13.5px ' + FONT + ';color:#41544F"></div>' +
-        '    <button class="hk-play hk-btn" title="Entwicklung abspielen" style="border:1.5px solid ' + C + ';background:#fff;color:' + C + ';font:600 12px/1 ' + FONT + ';width:32px;height:30px;border-radius:99px;flex:none"></button>' +
+        '    <button class="hk-play hk-btn" title="Zeitverlauf abspielen" style="border:1.5px solid ' + C + ';background:#fff;color:' + C + ';font:600 12.5px ' + FONT + ';padding:7px 14px;border-radius:99px;flex:none;display:inline-flex;align-items:center;gap:7px;white-space:nowrap"></button>' +
         '    <button class="hk-filterbtn hk-btn" style="display:none;align-items:center;gap:6px;border:1.5px solid #DCDAD0;background:#fff;color:#41544F;font:600 12.5px ' + FONT + ';padding:7px 14px;border-radius:99px;flex:none">Filter</button>' +
         '  </div>' +
         '  <div class="hk-filters" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px">' +
+        '    <span class="hk-flabel" style="display:none;font:700 11px ' + FONT + ';letter-spacing:.4px;text-transform:uppercase;color:#8A948F">Beitrittsjahr</span>' +
         '    <span class="hk-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span>' +
+        '    <span class="hk-flabel" style="display:none;font:700 11px ' + FONT + ';letter-spacing:.4px;text-transform:uppercase;color:#8A948F;margin-top:4px">Typ</span>' +
         '    <select class="hk-typ" style="border:1.5px solid #DCDAD0;border-radius:10px;padding:8px 9px;font:600 12.5px ' + FONT + ';color:#41544F;background:#fff;max-width:190px"></select>' +
+        '    <span class="hk-flabel" style="display:none;font:700 11px ' + FONT + ';letter-spacing:.4px;text-transform:uppercase;color:#8A948F;margin-top:4px">Landkreis</span>' +
         '    <select class="hk-kreis" style="border:1.5px solid #DCDAD0;border-radius:10px;padding:8px 9px;font:600 12.5px ' + FONT + ';color:#41544F;background:#fff;max-width:170px"></select>' +
         '    <button class="hk-clear hk-btn" style="display:none;border:none;background:transparent;color:' + C + ';font:600 12px ' + FONT + ';padding:6px 6px;text-decoration:underline">Filter zurücksetzen</button>' +
         '  </div>' +
@@ -154,7 +168,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         '<div class="hk-body" style="display:flex;gap:18px;align-items:stretch">' +
         '  <div class="hk-mapwrap" style="position:relative;flex:1 1 auto;min-width:0;background:#FBFAF7;border:1px solid #E9E7DE;border-radius:16px;overflow:hidden;padding:20px;box-sizing:border-box">' +
         '    <svg class="hk-svg" viewBox="0 0 ' + this.W + ' ' + this.H + '" style="display:block;width:100%;height:auto;max-height:76vh;touch-action:pan-y;user-select:none"><g class="hk-g"></g></svg>' +
-        '    <div class="hk-inset" style="position:absolute;left:12px;top:12px;width:106px;background:rgba(255,255,255,.92);border:1px solid #E9E7DE;border-radius:10px;padding:7px 7px 4px;z-index:4;box-sizing:border-box;box-shadow:0 2px 10px rgba(10,60,54,.08)"></div>' +
+        '    <button class="hk-wegchip hk-btn" title="hilver in Wegberg (NRW)" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:8px;z-index:5;background:#fff;border:1.5px solid #E0DED4;border-radius:99px;padding:7px 15px;box-shadow:0 3px 12px rgba(10,60,54,.12);font:600 12.5px ' + FONT + ';color:#123F39;white-space:nowrap"></button>' +
         '    <div style="position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:4">' +
         '      <button class="hk-zin hk-btn" title="Vergrößern" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font:600 19px/1 ' + FONT + ';box-shadow:0 2px 8px rgba(10,60,54,.10)">+</button>' +
         '      <button class="hk-zout hk-btn" title="Verkleinern" style="width:36px;height:36px;border-radius:10px;border:1px solid #E0DED4;background:#fff;color:#123F39;font:600 19px/1 ' + FONT + ';box-shadow:0 2px 8px rgba(10,60,54,.10)">−</button>' +
@@ -191,7 +205,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       lg.appendChild(t1); lg.appendChild(t2); g.appendChild(lg); this.labelsG = lg;
       this.markersG = svg('g', { class: 'hk-markers' }); g.appendChild(this.markersG);
       this.clustersG = svg('g', { class: 'hk-clusters' }); g.appendChild(this.clustersG);
-      this.buildInset();
+      this.spiderG = svg('g', { class: 'hk-spider' }); g.appendChild(this.spiderG);
       this.rebuildMarkers();
     }
     buildInset() {
@@ -268,11 +282,14 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.svgEl.addEventListener('pointermove', function (e) { self.onMove(e); });
       this.svgEl.addEventListener('pointerup', function (e) { self.onUp(e); });
       this.svgEl.addEventListener('pointercancel', function (e) { self.onUp(e); });
-      this.svgEl.addEventListener('click', function () { if (self._justDragged) { self._justDragged = false; return; } s.pinned = null; s.hover = null; self.render(); });
+      this.svgEl.addEventListener('click', function () { if (self._justDragged) { self._justDragged = false; return; } s.pinned = null; s.hover = null; s.spider = null; self.render(); });
       this.$('.hk-zin').addEventListener('click', function () { self.zoomCenter(1.5); });
       this.$('.hk-zout').addEventListener('click', function () { self.zoomCenter(1 / 1.5); });
       this.$('.hk-reset').addEventListener('click', function () { self.reset(); });
       this.$('.hk-play').addEventListener('click', function () { self.playGrowth(); });
+      this.$('.hk-wegchip').addEventListener('click', function (e) { e.stopPropagation(); var w = self.wegberg(); if (w) self.select(w); });
+      this.$('.hk-wegchip').addEventListener('mouseenter', function () { var w = self.wegberg(); if (w) self.enter(w); });
+      this.$('.hk-wegchip').addEventListener('mouseleave', function () { self.leave(); });
       this.$('.hk-geo').addEventListener('click', function () { self.locate(); });
       this.$('.hk-clear').addEventListener('click', function () { self.clearFilters(); });
       this.$('.hk-filterbtn').addEventListener('click', function () { s.filtersOpen = !s.filtersOpen; self.render(); });
@@ -304,8 +321,8 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var w = this.getBoundingClientRect().width || s.w; s.w = w;
       var narrow = w < 760;
       var activeId = s.pinned || s.hover;
-      var act = this.towns.filter(function (t) { return !t.planned; });
-      var nPlanned = this.towns.length - act.length;
+      var act = this.towns.filter(function (t) { return !t.planned && (s.year === 'alle' || t.year <= +s.year); });
+      var nPlanned = this.towns.filter(function (t) { return t.planned; }).length;
       var states = {}; act.forEach(function (t) { states[t.state || 'BW'] = 1; }); var nStates = Object.keys(states).length || 1;
       var nKom = act.filter(function (t) { return (t.typ || 'kommune') !== 'nachbarschaftshilfe'; }).length;
       var nNbh = act.filter(function (t) { return (t.typ || 'kommune') === 'nachbarschaftshilfe'; }).length;
@@ -321,31 +338,36 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this.svgEl.style.minHeight = narrow ? '300px' : '0';
       this.svgEl.style.touchAction = (s.z > 1.01) ? 'none' : 'pan-y';
       this.svgEl.style.cursor = s.z > 1.01 ? 'grab' : 'default';
-      this.$('.hk-inset').style.display = narrow ? 'none' : 'block';
+      this.$('.hk-play').style.display = narrow ? 'none' : 'inline-flex';
       // filters: compact behind a toggle on mobile
       var afc = (s.year !== 'alle' ? 1 : 0) + (s.typ !== 'alle' ? 1 : 0) + (s.kreis !== 'alle' ? 1 : 0);
-      var fb = this.$('.hk-filterbtn'), ff = this.$('.hk-filters');
+      var fb = this.$('.hk-filterbtn'), ff = this.$('.hk-filters'), flabels = this.root.querySelectorAll('.hk-flabel');
       if (narrow) {
         fb.style.display = 'inline-flex';
         fb.textContent = (afc ? 'Filter · ' + afc : 'Filter') + (s.filtersOpen ? '  ▲' : '  ▾');
         fb.style.borderColor = afc ? C : '#DCDAD0'; fb.style.color = afc ? C : '#41544F';
-        ff.style.display = s.filtersOpen ? 'flex' : 'none';
-        ff.style.flexDirection = 'column'; ff.style.alignItems = 'stretch';
-        this.$('.hk-typ').style.maxWidth = 'none'; this.$('.hk-kreis').style.maxWidth = 'none';
+        ff.style.cssText = s.filtersOpen ? 'display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;background:#fff;border:1px solid #E9E7DE;border-radius:14px;padding:14px;box-shadow:0 10px 26px rgba(10,60,54,.10)' : 'display:none';
+        for (var li = 0; li < flabels.length; li++) flabels[li].style.display = 'block';
+        this.$('.hk-typ').style.maxWidth = 'none'; this.$('.hk-typ').style.width = '100%'; this.$('.hk-typ').style.padding = '11px 12px';
+        this.$('.hk-kreis').style.maxWidth = 'none'; this.$('.hk-kreis').style.width = '100%'; this.$('.hk-kreis').style.padding = '11px 12px';
+        this.$('.hk-clear').style.marginTop = '4px';
       } else {
         fb.style.display = 'none';
-        ff.style.display = 'flex'; ff.style.flexDirection = 'row'; ff.style.alignItems = 'center';
-        this.$('.hk-typ').style.maxWidth = '190px'; this.$('.hk-kreis').style.maxWidth = '170px';
+        ff.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px';
+        for (var lj = 0; lj < flabels.length; lj++) flabels[lj].style.display = 'none';
+        this.$('.hk-typ').style.maxWidth = '190px'; this.$('.hk-typ').style.width = ''; this.$('.hk-typ').style.padding = '8px 9px';
+        this.$('.hk-kreis').style.maxWidth = '170px'; this.$('.hk-kreis').style.width = ''; this.$('.hk-kreis').style.padding = '8px 9px';
+        this.$('.hk-clear').style.marginTop = '0';
       }
       var lc = this.$('.hk-listcol'), ex = this.$('.hk-expand'), listBox = this.$('.hk-list');
       if (narrow) {
         lc.style.display = 'flex'; lc.style.width = '100%';
         ex.style.display = 'none';
         this.$('.hk-lheadrow').style.display = 'none';
-        this.$('.hk-searchrow').style.display = 'none';
         var mt = this.$('.hk-mtoggle'); mt.style.display = 'flex';
-        var listVisible = s.mobileListOpen || !!s.search.trim();
+        var listVisible = s.mobileListOpen;
         mt.innerHTML = '<span>Alle Standorte (' + this.towns.length + ')</span><span style="font:600 11px ' + FONT + '">' + (listVisible ? '▲ schließen' : '▼ anzeigen') + '</span>';
+        this.$('.hk-searchrow').style.display = listVisible ? 'flex' : 'none';
         listBox.style.display = listVisible ? 'flex' : 'none';
         listBox.style.maxHeight = '50vh';
       } else {
@@ -361,10 +383,10 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
 
       // sub + heading + play + clear
       this.$('.hk-sub').textContent = filtered ? (shown + ' von ' + this.towns.length + ' Standorten angezeigt') : 'Städte, Gemeinden & Nachbarschaftshilfen mit hilver';
-      this.$('.hk-play').textContent = s.playing ? '◼' : '▶';
+      this.$('.hk-play').innerHTML = '<span style="font-size:11px">' + (s.playing ? '◼' : '▶') + '</span>' + (s.playing ? 'Stopp' : 'Zeitverlauf');
       this.$('.hk-geo').textContent = s.locating ? '…' : '◎';
       this.$('.hk-geo2').textContent = s.locating ? '…' : '◎';
-      this.$('.hk-msearchwrap').style.display = narrow ? 'flex' : 'none';
+      this.$('.hk-msearchwrap').style.display = 'none';
       if (this.$('.hk-msearch').value !== s.search) this.$('.hk-msearch').value = s.search;
       this.$('.hk-clear').style.display = filtered ? 'inline-block' : 'none';
       this.$('.hk-lhead').textContent = filtered ? (shown === 1 ? '1 Ergebnis' : shown + ' Ergebnisse') : 'Alle Standorte';
@@ -443,7 +465,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         m.halo.style.display = a ? 'block' : 'none';
         var sw = a ? '#F5F0E4' : '#fff';
         if (!m.t.planned) { if (m.nbh) m.shape.setAttribute('fill', sw); else m.shape.setAttribute('stroke', sw); }
-        var showLbl = ok && s.z >= 3 && (!narrow || a);
+        var showLbl = ok && (m.t.id === activeId || (narrow ? (clusterOf[m.t.id] === undefined && s.z >= 3.6) : s.z >= 3));
         m.lbl.style.display = showLbl ? 'block' : 'none';
       });
       // cluster bubbles (mobile)
@@ -455,19 +477,63 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
           clusters.forEach(function (g) {
             if (g.length <= 1) return;
             var cx = 0, cy = 0; g.forEach(function (t) { cx += t.x; cy += t.y; }); cx /= g.length; cy /= g.length;
+            if (s.spider && Math.abs(cx - s.spider.cx) < 1 && Math.abs(cy - s.spider.cy) < 1) return;
             var grp = svg('g', { transform: 'translate(' + cx.toFixed(1) + ' ' + cy.toFixed(1) + ') scale(' + kbub.toFixed(3) + ')', style: 'cursor:pointer' });
             grp.appendChild(svg('circle', { r: 22, fill: 'transparent' }));
             grp.appendChild(svg('circle', { r: 15, fill: 'rgba(14,108,98,.16)' }));
             grp.appendChild(svg('circle', { r: 11.5, fill: C, stroke: '#fff', style: 'stroke-width:2' }));
             var tx = svg('text', { y: 4, style: 'font:700 12px ' + FONT + ';fill:#fff;text-anchor:middle;pointer-events:none' }); tx.textContent = g.length; grp.appendChild(tx);
-            grp.addEventListener('click', function (e) { e.stopPropagation(); self.zoomToGroup(g); });
+            grp.addEventListener('click', function (e) { e.stopPropagation(); self.clusterTap(g); });
             cg.appendChild(grp);
           });
         }
       }
+      // spider-fan for clusters that can't be separated by zoom
+      var spg = this.spiderG;
+      if (spg) {
+        while (spg.firstChild) spg.removeChild(spg.firstChild);
+        var sp = s.spider;
+        if (sp) {
+          var kf = 1 / (s.z * fScr), n = sp.members.length;
+          var Rw = Math.max(34, 15 * n) / (s.z * fScr);
+          sp.members.forEach(function (t, i) {
+            var ang = -Math.PI / 2 + i * 2 * Math.PI / n;
+            var mx = sp.cx + Math.cos(ang) * Rw, my = sp.cy + Math.sin(ang) * Rw;
+            spg.appendChild(svg('line', { x1: sp.cx.toFixed(1), y1: sp.cy.toFixed(1), x2: mx.toFixed(1), y2: my.toFixed(1), stroke: C, opacity: '.4', 'vector-effect': 'non-scaling-stroke', style: 'stroke-width:1.4' }));
+          });
+          var hub = svg('g', { transform: 'translate(' + sp.cx.toFixed(1) + ' ' + sp.cy.toFixed(1) + ') scale(' + kf.toFixed(3) + ')' });
+          hub.appendChild(svg('circle', { r: 5, fill: C, opacity: '.55' }));
+          spg.appendChild(hub);
+          sp.members.forEach(function (t, i) {
+            var ang = -Math.PI / 2 + i * 2 * Math.PI / n;
+            var mx = sp.cx + Math.cos(ang) * Rw, my = sp.cy + Math.sin(ang) * Rw;
+            var a = t.id === (s.pinned || s.hover);
+            var grp2 = svg('g', { transform: 'translate(' + mx.toFixed(1) + ' ' + my.toFixed(1) + ') scale(' + kf.toFixed(3) + ')', style: 'cursor:pointer' });
+            grp2.appendChild(svg('rect', { x: -18, y: -18, width: 36, height: 36, fill: 'transparent' }));
+            var shp = self.shapeFor(t);
+            if (a && !t.planned) { if ((t.typ || 'kommune') === 'nachbarschaftshilfe') shp.setAttribute('fill', '#F5F0E4'); else shp.setAttribute('stroke', '#F5F0E4'); }
+            grp2.appendChild(shp);
+            var lbl = svg('text', { y: (Math.sin(ang) < 0 ? -15 : 24), style: 'font:600 12px ' + FONT + ';fill:#17332F;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:3.5px;stroke-linejoin:round;pointer-events:none' }); lbl.textContent = t.name; grp2.appendChild(lbl);
+            grp2.addEventListener('click', function (e) { e.stopPropagation(); s.spider = null; self.select(t); });
+            spg.appendChild(grp2);
+          });
+        }
+      }
 
-      // inset dots + wegberg + viewport
-      this.renderInset();
+      // Wegberg off-map chip (NRW, nördlich außerhalb der Karte)
+      var wc = this.$('.hk-wegchip'), wg = this.wegberg();
+      if (wc) {
+        if (wg && this.match(wg)) {
+          var wgA = wg.id === activeId;
+          wc.style.display = 'inline-flex';
+          if (narrow) { wc.style.left = '50%'; wc.style.transform = 'translateX(-50%)'; } else { wc.style.left = '12px'; wc.style.transform = 'none'; }
+          wc.style.borderColor = wgA ? C : '#E0DED4';
+          wc.style.background = wgA ? '#EAF1EF' : '#fff';
+          wc.innerHTML = '<span style="font-size:14px;line-height:1;color:' + C + '">↑</span>' +
+            '<span style="width:10px;height:10px;border-radius:3px;background:#fff;border:2px solid ' + C + ';box-sizing:border-box;display:inline-block"></span>' +
+            'Wegberg · NRW';
+        } else { wc.style.display = 'none'; }
+      }
 
       // list
       this.renderList(activeId);
@@ -553,15 +619,15 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var link = '<a href="' + esc(at.url) + '" target="_blank" rel="noopener" style="display:inline-block;font:600 13.5px ' + FONT + ';color:' + C + ';text-decoration:underline;text-underline-offset:3px">hilver in ' + esc(at.name) + '&nbsp;→</a>';
       if (narrow) {
         card.innerHTML =
-          '<div style="width:34px;height:4px;border-radius:99px;background:#DED9CC;margin:0 auto 10px"></div>' +
-          '<div style="display:flex;align-items:center;gap:11px">' +
-            (at.logo ? '<div role="img" aria-label="' + esc(at.name) + '" style="width:68px;height:30px;flex:none;background:url(\'' + esc(at.logo) + '\') left center/contain no-repeat"></div>' : '') +
-            '<div style="flex:1 1 auto;min-width:0"><div style="font:700 15.5px ' + FONTD + ';color:#123F39;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.name) + '</div>' +
-            '<div style="font:400 12px ' + FONT + ';color:#5F6E6B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.region) + '</div></div>' +
+          '<div style="width:36px;height:4px;border-radius:99px;background:#E2DDD0;margin:0 auto 12px"></div>' +
+          '<div style="display:flex;align-items:center;gap:12px">' +
+            '<div style="width:60px;height:44px;flex:none;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #EAE7DE;border-radius:10px;overflow:hidden">' + (at.logo ? '<div role="img" aria-label="' + esc(at.name) + '" style="width:50px;height:32px;background:url(\'' + esc(at.logo) + '\') center/contain no-repeat"></div>' : '') + '</div>' +
+            '<div style="flex:1 1 auto;min-width:0"><div style="font:700 16px ' + FONTD + ';color:#123F39;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.name) + '</div>' +
+            '<div style="font:400 12.5px ' + FONT + ';color:#6B7975;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">' + esc(at.region) + '</div></div>' +
             closeBtn +
           '</div>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">' + badges + '</div>' +
-          '<div style="margin-top:9px">' + link + '</div>';
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:11px">' + badges + '</div>' +
+          '<a href="' + esc(at.url) + '" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:12px;background:' + C + ';color:#fff;font:700 14px ' + FONT + ';padding:12px;border-radius:11px;text-decoration:none">hilver in ' + esc(at.name) + ' öffnen →</a>';
       } else {
         card.innerHTML = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-height:30px">' +
           (at.logo ? '<div role="img" aria-label="' + esc(at.name) + '" style="width:150px;height:32px;background:url(\'' + esc(at.logo) + '\') left center/contain no-repeat"></div>' : '<span></span>') +
@@ -580,14 +646,16 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       if (narrow) {
         card.style.width = 'calc(100% - 16px)';
         card.style.left = '8px'; card.style.right = 'auto'; card.style.top = 'auto'; card.style.bottom = '8px';
-        card.style.borderRadius = '16px'; card.style.padding = '12px 14px 13px';
+        card.style.borderRadius = '18px'; card.style.padding = '12px 15px 15px';
+        card.style.border = '1px solid #ECE9E0'; card.style.boxShadow = '0 -6px 28px rgba(10,60,54,.18)';
         return;
       }
       card.style.borderRadius = '14px'; card.style.padding = '14px 16px 13px';
+      card.style.border = '1.5px solid ' + C; card.style.boxShadow = '0 12px 32px rgba(10,60,54,.16)';
       var px = fr.ox + (at.x * this.st.z + this.st.tx) * fr.f + PAD, py = fr.oy + (at.y * this.st.z + this.st.ty) * fr.f + PAD;
       var CW = 264, CH = 206, gap = 16;
       card.style.width = CW + 'px'; card.style.bottom = 'auto';
-      if (at.state === 'NW') { card.style.left = '118px'; card.style.top = '20px'; return; }
+      if (at.state === 'NW') { card.style.left = '12px'; card.style.top = '58px'; return; }
       var W2 = fr.r.width + PAD, H2 = fr.r.height + PAD, left, top;
       var rf = px + gap + CW <= W2 - 8, lf = px - gap - CW >= PAD + 8;
       if (rf) left = px + gap; else if (lf) left = px - gap - CW; else left = Math.max(PAD + 8, Math.min(W2 - CW - 8, px - CW / 2));
