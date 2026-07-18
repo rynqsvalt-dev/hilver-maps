@@ -77,7 +77,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
 
     /* ---------- geometry ---------- */
     fit() { var r = this.svgEl.getBoundingClientRect(); var f = Math.min(r.width / this.W, r.height / this.H) || 1; return { r: r, f: f, ox: (r.width - this.W * f) / 2, oy: (r.height - this.H * f) / 2 }; }
-    clampT(z, tx, ty) { var m = 40; tx = Math.min(m, Math.max(this.W - this.W * z - m, tx)); ty = Math.min(m, Math.max(this.H - this.H * z - m, ty)); return { z: z, tx: tx, ty: ty }; }
+    clampT(z, tx, ty) { if (z <= 1.001) return { z: z, tx: 0, ty: 0 }; var m = 40; tx = Math.min(m, Math.max(this.W - this.W * z - m, tx)); ty = Math.min(m, Math.max(this.H - this.H * z - m, ty)); return { z: z, tx: tx, ty: ty }; }
     zoomAt(vx, vy, nz) { cancelAnimationFrame(this._raf); this.st.spider = null; var s = this.st; nz = Math.min(16, Math.max(1, nz)); if (nz <= 1.06) { s.z = 1; s.tx = 0; s.ty = 0; this.render(); return; } var wx = (vx - s.tx) / s.z, wy = (vy - s.ty) / s.z; var c = this.clampT(nz, vx - wx * nz, vy - wy * nz); s.z = c.z; s.tx = c.tx; s.ty = c.ty; this.render(); }
     zoomCenter(k) { var fr = this.fit(); this.zoomAt((fr.r.width / 2 - fr.ox) / fr.f, (fr.r.height / 2 - fr.oy) / fr.f, this.st.z * k); }
     animateTo(nz, ntx, nty) { cancelAnimationFrame(this._raf); var s = this.st, t0 = performance.now(), z0 = s.z, x0 = s.tx, y0 = s.ty, self = this; function step(t) { var pr = Math.min(1, (t - t0) / 380), e = 1 - Math.pow(1 - pr, 3); s.z = z0 + (nz - z0) * e; s.tx = x0 + (ntx - x0) * e; s.ty = y0 + (nty - y0) * e; self.render(); if (pr < 1) self._raf = requestAnimationFrame(step); } this._raf = requestAnimationFrame(step); }
@@ -325,6 +325,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var s = this.st, self = this;
       var w = this.getBoundingClientRect().width || s.w; s.w = w;
       var narrow = w < 760;
+      var fsDesk = s.fullscreen && !narrow;
       var activeId = s.pinned || s.hover;
       var act = this.towns.filter(function (t) { return !t.planned && (s.year === 'alle' || t.year <= +s.year); });
       var nPlanned = this.towns.filter(function (t) { return t.planned; }).length;
@@ -337,11 +338,14 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       var shown = this.towns.filter(function (t) { return self.match(t); }).length;
 
       // layout
-      this.$('.hk-body').style.flexDirection = narrow ? 'column' : 'row';
+      var bodyEl = this.$('.hk-body'); bodyEl.style.flexDirection = narrow ? 'column' : 'row'; bodyEl.style.flex = fsDesk ? '1 1 auto' : '0 1 auto'; bodyEl.style.minHeight = fsDesk ? '0' : ''; this.$('.hk-mapwrap').style.minHeight = '0'; this.$('.hk-mapwrap').style.height = fsDesk ? '100%' : '';
       this.$('.hk-mapwrap').style.padding = narrow ? '18px 8px' : '20px';
-      if (this.wrap) this.wrap.style.cssText = s.fullscreen ? ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;position:fixed;inset:0;z-index:2147483000;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 22px") : ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;width:100%");
+      if (this.wrap) this.wrap.style.cssText = s.fullscreen ? ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;position:fixed;inset:0;z-index:2147483000;background:#fff;padding:12px 16px;" + (fsDesk ? "display:flex;flex-direction:column;overflow:hidden;" : "overflow:auto;-webkit-overflow-scrolling:touch;")) : ("font-family:" + FONT + ";color:#17332F;box-sizing:border-box;width:100%");
       var fsb = this.$('.hk-fs'); if (fsb) { fsb.innerHTML = s.fullscreen ? '✕' : '⤢'; fsb.title = s.fullscreen ? 'Vollbild schließen' : 'Vollbild'; }
-      this.svgEl.style.maxHeight = s.fullscreen ? (narrow ? '68vh' : '84vh') : (narrow ? '58vh' : '76vh');
+      this.svgEl.style.maxHeight = fsDesk ? '100%' : (s.fullscreen ? '68vh' : (narrow ? '58vh' : '76vh'));
+      this.svgEl.style.height = fsDesk ? '100%' : 'auto';
+      var csz = narrow ? 30 : 36, cbtns = [['.hk-fs', narrow ? 14 : 15], ['.hk-zin', narrow ? 17 : 19], ['.hk-zout', narrow ? 17 : 19], ['.hk-reset', narrow ? 14 : 16]];
+      for (var ci = 0; ci < cbtns.length; ci++) { var cb = this.$(cbtns[ci][0]); if (cb) { cb.style.width = csz + 'px'; cb.style.height = csz + 'px'; cb.style.fontSize = cbtns[ci][1] + 'px'; } }
       this.svgEl.style.minHeight = narrow ? '300px' : '0';
       this.svgEl.style.touchAction = narrow ? 'none' : (s.z > 1.01 ? 'none' : 'pan-y');
       this.svgEl.style.cursor = s.z > 1.01 ? 'grab' : 'default';
@@ -385,7 +389,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         this.$('.hk-collapse').style.display = 'block';
         this.$('.hk-searchrow').style.display = 'flex';
         this.$('.hk-mtoggle').style.display = 'none';
-        listBox.style.display = 'flex'; listBox.style.maxHeight = '76vh';
+        listBox.style.display = 'flex'; if (fsDesk) { listBox.style.flex = '1 1 auto'; listBox.style.minHeight = '0'; listBox.style.maxHeight = 'none'; } else { listBox.style.flex = '0 1 auto'; listBox.style.maxHeight = '76vh'; }
         var exl = this.$('.hk-expandlbl'); if (exl) exl.textContent = 'Alle Standorte (' + this.towns.length + ')';
       }
 
