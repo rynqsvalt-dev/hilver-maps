@@ -8,8 +8,8 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
 (function () {
   var DATA = window.HILVER_MAP;
   var C = '#0E6C62';
-  var FONT = "'Wix Madefor Text',system-ui,sans-serif";
-  var FONTD = "'Wix Madefor Display',system-ui,sans-serif";
+  var FONT = "'Lato',system-ui,sans-serif";
+  var FONTD = "'Lato',system-ui,sans-serif";
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
 
   function normTown(t, i, p) {
@@ -61,7 +61,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     injectFont() {
       if (!document.getElementById('hilver-karte-font')) {
         var l = document.createElement('link'); l.id = 'hilver-karte-font'; l.rel = 'stylesheet';
-        l.href = 'https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@500;600;700;800&family=Wix+Madefor+Text:wght@400;500;600;700&display=swap';
+        l.href = 'https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap';
         document.head.appendChild(l);
       }
     }
@@ -179,10 +179,10 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
         '  </div>' +
         '  <div class="hk-listcol" style="flex:none;width:320px;display:flex;flex-direction:column;gap:8px;min-width:0;box-sizing:border-box">' +
         '    <div class="hk-lheadrow" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px">' +
-        '      <span class="hk-lhead" style="font:700 12.5px ' + FONT + ';color:#41544F;letter-spacing:.6px;text-transform:uppercase"></span>' +
+        '      <span class="hk-lhead" style="font:700 11.5px ' + FONT + ';color:#41544F;letter-spacing:.6px;text-transform:uppercase"></span>' +
         '      <button class="hk-collapse hk-btn" title="Liste ausblenden" style="border:1px solid #E0DED4;background:#fff;color:#41544F;border-radius:8px;width:26px;height:26px;font-size:14px;line-height:1">⟩</button>' +
         '    </div>' +
-        '    <button class="hk-mtoggle hk-btn" style="display:none;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box;border:1px solid #E9E7DE;background:#F7F5EF;border-radius:12px;padding:13px 15px;font:700 12.5px ' + FONT + ';color:#123F39;text-transform:uppercase;letter-spacing:.4px"></button>' +
+        '    <button class="hk-mtoggle hk-btn" style="display:none;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box;border:1px solid #E9E7DE;background:#F7F5EF;border-radius:12px;padding:13px 15px;font:700 11.5px ' + FONT + ';color:#123F39;text-transform:uppercase;letter-spacing:.4px"></button>' +
         '    <div class="hk-searchrow" style="display:flex;gap:8px;padding:0 2px 2px">' +
         '      <div style="position:relative;flex:1 1 auto;min-width:0">' +
         '        <input class="hk-search" type="search" placeholder="Ort suchen …" style="width:100%;box-sizing:border-box;border:1.5px solid #DCDAD0;border-radius:10px;padding:8px 34px 8px 12px;font:500 13.5px ' + FONT + ';color:#17332F;background:#fff;outline:none">' +
@@ -634,7 +634,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
           '<div style="display:flex;align-items:flex-start;gap:13px">' +
             '<div style="width:66px;height:50px;flex:none;display:flex;align-items:center;justify-content:center;background:#F7F5EF;border:1px solid #EAE7DE;border-radius:12px;overflow:hidden">' + (at.logo ? '<div role="img" aria-label="' + esc(at.name) + '" style="width:54px;height:36px;background:url(\'' + esc(at.logo) + '\') center/contain no-repeat"></div>' : '<span style="font:800 20px ' + FONTD + ';color:' + C + '">' + esc(at.name.charAt(0)) + '</span>') + '</div>' +
             '<div style="flex:1 1 auto;min-width:0">' +
-              '<div style="font:800 18px ' + FONTD + ';color:#123F39;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.name) + '</div>' +
+              '<div style="font:800 17px ' + FONTD + ';color:#123F39;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.name) + '</div>' +
               '<div style="font:500 12.5px ' + FONT + ';color:#6B7975;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(at.region) + '</div>' +
               '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">' + badges + '</div>' +
             '</div>' +
