@@ -41,7 +41,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
     attributeChangedCallback(name, oldV, newV) {
       if (!this._init || !newV) return;
       if (name === 'kommunen-json') { try { var a = JSON.parse(newV); if (Array.isArray(a)) this.setTowns(a); } catch (e) {} }
-      else if (name === 'daten-url') { var self = this; fetch(newV).then(function (r) { return r.json(); }).then(function (j) { var a = Array.isArray(j) ? j : j.kommunen; if (Array.isArray(a)) self.setTowns(a); }).catch(function () {}); }
+      else if (name === 'daten-url') { var self = this; fetch(newV + (newV.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { var a = Array.isArray(j) ? j : j.kommunen; if (Array.isArray(a)) self.setTowns(a); }).catch(function () {}); }
     }
     connectedCallback() {
       if (this._init) return; this._init = true;
@@ -58,7 +58,7 @@ window.HILVER_MAP = {"W":1000,"H":1147,"proj":{"kx":0.6600016679609367,"s":507.7
       this._onKey = (e) => { if (e.key !== 'Escape') return; if (this.st.fullscreen) { this.toggleFullscreen(); return; } if (this.st.pinned || this.st.hover) { this.st.pinned = null; this.st.hover = null; this.render(); } };
       window.addEventListener('keydown', this._onKey);
       var du = this.getAttribute('daten-url');
-      if (du) fetch(du).then(function (r) { return r.json(); }).then((j) => { var a = Array.isArray(j) ? j : j.kommunen; if (Array.isArray(a)) this.setTowns(a); }).catch(function () {});
+      if (du) fetch(du + (du.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then((j) => { var a = Array.isArray(j) ? j : j.kommunen; if (Array.isArray(a)) this.setTowns(a); }).catch(function () {});
       this._ro = (window.ResizeObserver) ? new ResizeObserver(() => this.onResize()) : null;
       if (this._ro) this._ro.observe(this);
       this._onWinResize = () => this.onResize();
