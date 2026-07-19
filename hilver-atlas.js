@@ -37,13 +37,30 @@
       this.appendChild(frame);
       this._render();
 
+      var self = this;
       this._onMsg = function (e) {
         var d = e.data;
-        if (d && d.type === 'hilver:height' && d.height && e.source === frame.contentWindow) {
-          frame.style.height = d.height + 'px';
-        }
+        if (!d || e.source !== frame.contentWindow) return;
+        if (d.type === 'hilver:height' && d.height) { if (!self._full) frame.style.height = d.height + 'px'; }
+        else if (d.type === 'hilver:fullscreen') { self._setFull(!!d.on); }
+        else if (d.type === 'hilver:reveal') { try { frame.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { try { window.scrollTo(0, frame.getBoundingClientRect().top + window.pageYOffset - 8); } catch (y) {} } }
       };
       window.addEventListener('message', this._onMsg);
+    }
+
+    _setFull(on) {
+      var f = this._frame; if (!f) return;
+      this._full = on;
+      if (on) {
+        this._prevH = f.style.height;
+        f.style.position = 'fixed'; f.style.left = '0'; f.style.top = '0'; f.style.right = '0'; f.style.bottom = '0';
+        f.style.width = '100%'; f.style.height = '100vh'; f.style.zIndex = '2147483647';
+        try { document.documentElement.style.overflow = 'hidden'; } catch (x) {}
+      } else {
+        f.style.position = ''; f.style.left = ''; f.style.top = ''; f.style.right = ''; f.style.bottom = '';
+        f.style.zIndex = ''; f.style.width = '100%'; f.style.height = this._prevH || '760px';
+        try { document.documentElement.style.overflow = ''; } catch (x) {}
+      }
     }
 
     disconnectedCallback() { if (this._onMsg) window.removeEventListener('message', this._onMsg); }
