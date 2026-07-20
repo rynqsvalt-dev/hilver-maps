@@ -55,12 +55,12 @@
       if (on) {
         this._prevH = f.style.height;
         f.style.position = 'fixed'; f.style.left = '0'; f.style.top = '0'; f.style.right = '0'; f.style.bottom = '0';
-        f.style.width = '100%'; f.style.height = '100vh'; f.style.zIndex = '2147483647';
-        try { document.documentElement.style.overflow = 'hidden'; } catch (x) {}
+        f.style.width = '100%'; f.style.height = '100vh'; f.style.height = '100dvh'; f.style.zIndex = '2147483647';
+        try { document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden'; } catch (x) {}
       } else {
         f.style.position = ''; f.style.left = ''; f.style.top = ''; f.style.right = ''; f.style.bottom = '';
         f.style.zIndex = ''; f.style.width = '100%'; f.style.height = this._prevH || '760px';
-        try { document.documentElement.style.overflow = ''; } catch (x) {}
+        try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch (x) {}
       }
     }
 
