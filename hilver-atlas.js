@@ -44,6 +44,7 @@
         if (d.type === 'hilver:height' && d.height) { if (!self._full) frame.style.height = d.height + 'px'; }
         else if (d.type === 'hilver:fullscreen') { self._setFull(!!d.on); }
         else if (d.type === 'hilver:reveal') { try { frame.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { try { window.scrollTo(0, frame.getBoundingClientRect().top + window.pageYOffset - 8); } catch (y) {} } }
+        else if (d.type === 'hilver:navigate' && d.url) { try { window.top.location.href = d.url; } catch (x) { window.location.href = d.url; } }
       };
       window.addEventListener('message', this._onMsg);
     }
