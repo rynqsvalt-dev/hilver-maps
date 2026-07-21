@@ -36,12 +36,16 @@
       this._frame = frame;
       this.appendChild(frame);
       this._render();
+      this._syncHeight();
+      this._onResize = function () { self._syncHeight(); };
+      window.addEventListener('resize', this._onResize);
+      window.addEventListener('orientationchange', this._onResize);
 
       var self = this;
       this._onMsg = function (e) {
         var d = e.data;
         if (!d || e.source !== frame.contentWindow) return;
-        if (d.type === 'hilver:height' && d.height) { if (!self._full) frame.style.height = d.height + 'px'; }
+        if (d.type === 'hilver:height' && d.height) { if (!self._full && !self._isMobile()) frame.style.height = d.height + 'px'; }
         else if (d.type === 'hilver:fullscreen') { self._setFull(!!d.on); }
         else if (d.type === 'hilver:reveal') { try { frame.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { try { window.scrollTo(0, frame.getBoundingClientRect().top + window.pageYOffset - 8); } catch (y) {} } }
         else if (d.type === 'hilver:navigate' && d.url) { try { window.top.location.href = d.url; } catch (x) { window.location.href = d.url; } }
@@ -61,10 +65,18 @@
         f.style.position = ''; f.style.left = ''; f.style.top = ''; f.style.right = ''; f.style.bottom = '';
         f.style.zIndex = ''; f.style.width = '100%'; f.style.height = this._prevH || '760px';
         try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch (x) {}
+        this._syncHeight();
       }
     }
 
-    disconnectedCallback() { if (this._onMsg) window.removeEventListener('message', this._onMsg); }
+    _isMobile() { try { return window.matchMedia('(max-width: 760px)').matches; } catch (x) { return window.innerWidth <= 760; } }
+
+    _syncHeight() {
+      var f = this._frame; if (!f || this._full) return;
+      if (this._isMobile()) { f.style.height = Math.round(window.innerHeight) + 'px'; }
+    }
+
+    disconnectedCallback() { if (this._onMsg) window.removeEventListener('message', this._onMsg); if (this._onResize) { window.removeEventListener('resize', this._onResize); window.removeEventListener('orientationchange', this._onResize); } }
 
     attributeChangedCallback() { if (this._built) this._render(); }
 
